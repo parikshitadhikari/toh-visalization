@@ -1,4 +1,4 @@
-#define NUM_DISCS 3
+#define NUM_DISCS 4
 #define ROD_HEIGHT 4
 #define WINDOW_WIDTH 1350
 #define WINDOW_HEIGHT 690
