@@ -1,19 +1,5 @@
-#include <iostream>
-#include <stdio.h>
-#include <GL/freeglut.h>
-#include <cmath>
-#include <list>
-
-#define NUM_DISCS 3
-#define ROD_HEIGHT 4
-#define WINDOW_WIDTH 1350
-#define WINDOW_HEIGHT 690
-#define PI 22 / 7.0f
-#define DISC_SPACING 0.35
-#define BOARD_X 10
-#define BOARD_Y 5
-
-// Keep DISC_SPACING between 0.3 to 0.6 for best results
+#include"include/imports.h"
+#include"include/define.h"
 
 using namespace std;
 
@@ -34,35 +20,32 @@ struct Vector3
 
 struct Disc
 {
-	Disc() { normal = Vector3(0.0, 0.0, 1.0); }
-
-	Vector3 position; // location
-	Vector3 normal;	  // orientation
+	Disc() { normal = Vector3(0.0, 0.0, 1); }
+	Vector3 position; // represents position of the discs
+	Vector3 normal;	  // represents orientation of disc, default orientation is +Z axis
 };
 
 struct ActiveDisc
 { // Active Disc to be moved [later in motion]
 	int disc_index;
-	Vector3 start_pos, dest_pos;
+	Vector3 start_pos, dest_pos; // initially 0,0,0 and 0,0,0
 	double u; // u E [0, 1]
 	double step_u;
 	bool is_in_motion;
 	int direction; // +1 for Left to Right & -1 for Right to left, 0 = stationary
 };
 
-// Rods and Discs Globals - Can be changed for different levels
-
 struct Rod
 {
-	Vector3 positions[NUM_DISCS];
-	int occupancy_val[NUM_DISCS];
+	Vector3 positions[NUM_DISCS]; //vector3 positions1, positions2
+	int occupancy_val[NUM_DISCS]; //occ_val1, occ_val2
 };
 
 struct GameBoard
 {
 	double x_min, y_min, x_max, y_max; // Base in XY-Plane
 	double rod_base_rad;			   // Rod's base radius
-	Rod rods[3];
+	Rod rods[3]; // Rod rod1, rod2, rod3
 };
 
 struct solution_pair
@@ -74,32 +57,31 @@ struct solution_pair
 Disc discs[NUM_DISCS];
 GameBoard t_board;
 ActiveDisc active_disc;
-list<solution_pair> sol;
+list<solution_pair> sol; // linked list, stores sequence of 'solution_pair' structs, represents the solution steps
 bool to_solve = false;
 
 // Globals for window, time, FPS, moves
-float SPEED = 2;
+float SPEED = 2; // speed of movement, 2x the normal speed
 int FPS = int(30 * SPEED);
 int moves = 0;
 int prev_time = 0;
 int window_width = WINDOW_WIDTH, window_height = WINDOW_HEIGHT;
 
+// prototypes
 void initialize();
 void initialize_game();
 void display_handler();
 void reshape_handler(int w, int h);
 void keyboard_handler(unsigned char key, int x, int y);
-
 void anim_handler();
 void move_disc(int from_rod, int to_rod);
 Vector3 get_inerpolated_coordinate(Vector3 v1, Vector3 v2, double u);
 void move_stack(int n, int f, int t);
 
+// creates visualization of toh
 int main2()
 {
-
 	// Initialize GLUT Window
-	// glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 	glutInitWindowSize(window_width, window_height);
 	glutInitWindowPosition(0, 0);
@@ -107,27 +89,23 @@ int main2()
 	glutDestroyWindow(1);
 
 	initialize();
-	cout << "Towers of Hanoi" << endl;
+	cout << "TOH- Visualization" << endl;
 	cout << "Press H for Help" << endl;
 
 	// Callbacks
 	glutDisplayFunc(display_handler);
 	glutReshapeFunc(reshape_handler);
 	glutKeyboardFunc(keyboard_handler);
-
 	glutIdleFunc(anim_handler);
 
 	glutMainLoop();
 	return 0;
 }
 
+// setup initial configs and states
 void initialize()
 {
 	glClearColor(0, 0, 0, 0);
-	// Setting the clear color
-	// glShadeModel(GL_SMOOTH);
-	// SMOOTH Shading
-
 	glEnable(GL_DEPTH_TEST); // Enabling Depth Test
 
 	// Setting Light0 parameters
@@ -135,14 +113,10 @@ void initialize()
 	// A positional light
 	glLightfv(GL_LIGHT0, GL_POSITION, light0_pos);
 
-	glEnable(GL_LIGHTING);
 	// Enabling Lighting
-	glEnable(GL_LIGHT0);
+	glEnable(GL_LIGHTING);
 	// Enabling Light0
-
-	// Globals initializations
-	// prev_time = glutGet(GLUT_ELAPSED_TIME);
-
+	glEnable(GL_LIGHT0);
 	// Initializing Game State
 	initialize_game();
 }
@@ -152,7 +126,7 @@ void initialize_game()
 	// Initializing 1)GameBoard t_board 2) Discs discs  3) ActiveDisc active_disc State
 
 	// 1) Initializing GameBoard
-	t_board.rod_base_rad = 1.0;
+	t_board.rod_base_rad = 1;
 	t_board.x_min = 0.0;
 	t_board.x_max = BOARD_X * t_board.rod_base_rad;
 	t_board.y_min = 0.0;
@@ -160,7 +134,7 @@ void initialize_game()
 
 	double x_center = (t_board.x_max - t_board.x_min) / 2.0;
 	double y_center = (t_board.y_max - t_board.y_min) / 2.0;
-
+	// for single rod
 	double dx = (t_board.x_max - t_board.x_min) / 3.0; // Since 3 rods
 	double r = t_board.rod_base_rad;
 
@@ -175,39 +149,37 @@ void initialize_game()
 			}
 			else
 				t_board.rods[i].occupancy_val[h] = -1;
-
-			// printf("%d\t",t_board.rods[i].occupancy_val[h]);
 		}
-		// printf("\n");
 	}
 
-	// Initializing Rod positions
+	// Initializing positions of discs on rod
 	for (int i = 0; i < 3; i++)
 	{
 		for (int h = 0; h < NUM_DISCS; h++)
 		{
-			double x = x_center + ((int)i - 1) * dx;
+			double x = x_center + ((int)i - 1) * dx; 
 			double y = y_center;
 			double z = (h + 1) * DISC_SPACING;
-			Vector3 &pos_to_set = t_board.rods[i].positions[h];
+			Vector3 &pos_to_set = t_board.rods[i].positions[h]; //h=0, bottom disk
 			pos_to_set.x = x;
 			pos_to_set.y = y;
 			pos_to_set.z = z;
-			printf("%f %f %f \n", x, y, z);
 		}
 	}
 
-	// 2) Initializing Discs
-	for (size_t i = 0; i < NUM_DISCS; i++)
+	// 2) Initializing Discs on first rod
+	for (int i = 0; i < NUM_DISCS; i++)
 	{
+		// when i =0, index of disc at bottom position is received
+		// when i =1, index of disc at 2nd from bottom position is received
 		discs[i].position = t_board.rods[0].positions[NUM_DISCS - i - 1];
 		// Normals are initialized whie creating a Disc object - ie in constructor of Disc
 	}
 
-	// 3) Initializing Active Disc
-	active_disc.disc_index = -1;
+	// 3) Initializing the property Active Disc
+	active_disc.disc_index = -1; // indicating no disc is currently in motion
 	active_disc.is_in_motion = false;
-	active_disc.step_u = 0.015;
+	active_disc.step_u = 0.015; //determines how much the u parameter (used for animation) will be incremented in each step
 	active_disc.u = 0.0;
 	active_disc.direction = 0;
 }
@@ -217,10 +189,9 @@ void draw_solid_cylinder(double x, double y, double r, double h)
 {
 	GLUquadric *q = gluNewQuadric();
 	GLint slices = 50;
-	GLint stacks = 10;
-
+	GLint stacks = 2;
 	glPushMatrix();
-	glTranslatef(x, y, 0.0f);
+	glTranslatef(x, y, 0.0f); //translate coordinates to the specified posn
 	gluCylinder(q, r, r, h, slices, stacks);
 	glTranslatef(0, 0, h);
 	gluDisk(q, 0, r, slices, stacks);
@@ -232,8 +203,8 @@ void draw_solid_cylinder(double x, double y, double r, double h)
 void draw_board_and_rods(GameBoard const &board)
 {
 	// Materials,
-	GLfloat mat_white[] = {1.0f, 1.0f, 1.0f, 1.0f};
-	GLfloat mat_yellow[] = {1.0f, 1.0f, 0.0f, 1.0f};
+	GLfloat mat_white[] = {1.0f, 1.0f, 1.0f, 1.0f}; // board color
+	GLfloat mat_red[] = {1.0f, 0.0f, 0.0f, 1.0f}; //rod color
 
 	glPushMatrix();
 	// Drawing the Base Rectangle [where the rods are placed]
@@ -248,13 +219,17 @@ void draw_board_and_rods(GameBoard const &board)
 	glEnd();
 
 	// Drawing Rods and Pedestals
-	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat_yellow);
+	// Set material properties for rods and pedestals to yellow
+	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat_red);
 
 	double r = board.rod_base_rad;
 	for (int i = 0; i < 3; i++)
 	{
-		Vector3 const &p = board.rods[i].positions[0];
+		Vector3 const &p = board.rods[i].positions[0]; //position of first disc
+
+		// Draw a solid cylinder representing the rod
 		draw_solid_cylinder(p.x, p.y, r * 0.1, ROD_HEIGHT - 0.1);
+		// Draw a solid cylinder representing the pedestal
 		draw_solid_cylinder(p.x, p.y, r, 0.1);
 	}
 
@@ -264,7 +239,7 @@ void draw_board_and_rods(GameBoard const &board)
 // Draw function for drawing discs
 void draw_discs()
 {
-	int slices = 100;
+	int slices = 50;
 	int stacks = 10;
 
 	double rad;
@@ -273,16 +248,17 @@ void draw_discs()
 	GLfloat emission[] = {0.4f, 0.4f, 0.4f, 1.0f};
 	GLfloat no_emission[] = {0.0f, 0.0f, 0.0f, 1.0f};
 	GLfloat material[] = {1.0f, 1.0f, 1.0f, 1.0f};
+	// deciding color for each disk
 	for (size_t i = 0; i < NUM_DISCS; i++)
 	{
 		switch (i)
 		{
-		case 0:
+		case 0: //color for first disk from top
 			r = 0;
 			g = 0;
 			b = 1;
 			break;
-		case 1:
+		case 1: //color for second disk from top
 			r = 0;
 			g = 1;
 			b = 0;
@@ -319,10 +295,11 @@ void draw_discs()
 		material[0] = r;
 		material[1] = g;
 		material[2] = b;
+		// set material properties of each disk
 		glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, material);
 
 		GLfloat u = 0.0f;
-		// This part is written to highlight the disc in motion
+		// highlight the disc in motion
 		if (i == active_disc.disc_index)
 		{
 			glMaterialfv(GL_FRONT, GL_EMISSION, emission);
@@ -359,14 +336,15 @@ void draw_discs()
 		default:
 			break;
 		};
-		rad = factor * t_board.rod_base_rad;
-		int d = active_disc.direction;
+		rad = factor * t_board.rod_base_rad; //radius of the rod
+		int d = active_disc.direction; //direction of the rod
 
 		glPushMatrix();
 		glTranslatef(discs[i].position.x, discs[i].position.y, discs[i].position.z);
-		double theta = acos(discs[i].normal.z);
-		theta *= 180.0f / PI;
-		glRotatef(d * theta, 0.0f, 1.0f, 0.0f);
+		// double theta = acos(discs[i].normal.z);
+		// cout<<"theta: "<<theta<<endl;
+		// theta *= 180.0f / PI;
+		// glRotatef(d * theta, 0.0f, 0.0f, 0.0f); //rotation around y axis
 		glutSolidTorus(0.2 * t_board.rod_base_rad, rad, stacks, slices);
 		glPopMatrix();
 
@@ -374,6 +352,7 @@ void draw_discs()
 	}
 }
 
+// renders toh graphics on screen
 void display_handler()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -387,13 +366,14 @@ void display_handler()
 	view[1] = y_center - 10;
 	view[2] = 3 * r;
 
-	glMatrixMode(GL_MODELVIEW);
+	glMatrixMode(GL_MODELVIEW); //sets the current matrix mode to the mvm, mvm is used to transform the objects in the scene relative to the camera's viewpoint.
 	glLoadIdentity();
-	gluLookAt(view[0], view[1], view[2],
-			  x_center, y_center, 3.0,
-			  0.0, 0.0, 1.0);
+	gluLookAt(view[0], view[1], view[2], //position
+			  x_center, y_center, 3.0, //target
+			  0.0, 0.0, 1.0); //up direction
 
-	glPushMatrix();
+	glPushMatrix(); // push camera matrix
+	// then draw the game elements:
 	draw_board_and_rods(t_board);
 	draw_discs();
 	glPopMatrix();
@@ -405,13 +385,10 @@ void reshape_handler(int w, int h)
 {
 	window_width = w;
 	window_height = h;
-
 	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
-
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	gluPerspective(45.0, (GLfloat)w / (GLfloat)h, 0.1, 20.0);
-
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
@@ -460,7 +437,7 @@ void keyboard_handler(unsigned char key, int x, int y)
 
 	case 's':
 	case 'S':
-		if (t_board.rods[0].occupancy_val[NUM_DISCS - 1] < 0)
+		if (t_board.rods[0].occupancy_val[NUM_DISCS - 1] < 0) //occ val of first rod < 0
 			break;
 
 		solve();
@@ -483,21 +460,19 @@ void keyboard_handler(unsigned char key, int x, int y)
 
 void reshape(int w, int h)
 {
-
 	glViewport(0, 0, w, h);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluOrtho2D(0, w, h, 0);
-	glMatrixMode(GL_MODELVIEW);
+	glMatrixMode(GL_PROJECTION); // controls how 3d scenes are projected onto a 2d screen
+	glLoadIdentity(); //resets projection matrix
+	gluOrtho2D(0, w, h, 0); // 2d mode
+	glMatrixMode(GL_MODELVIEW); // switches back to m-v-m
 	glLoadIdentity();
 }
 void drawStrokeText(const char *text, int x, int y, int z)
 {
-
 	const char *c;
 	glPushMatrix();
-	glTranslatef(x, y + 8, z);
-	glScalef(0.49f, -0.508f, z);
+	glTranslatef(x, y, z);
+	glScalef(0.5f, -0.5f, z);
 
 	for (c = text; *c != '\0'; c++)
 	{
@@ -508,12 +483,11 @@ void drawStrokeText(const char *text, int x, int y, int z)
 
 void render(void)
 {
-	glClear(GL_COLOR_BUFFER_BIT);
-	glLoadIdentity();
+	glClear(GL_COLOR_BUFFER_BIT); //cls
+	glLoadIdentity(); // resets model-view matrix to identity matrix
 
 	glColor3f(0, 0, 1);
 	drawStrokeText("TOH - VISUALIZATION", 400, 200, 0);
-
     glColor3f(1, 1, 0);
 	drawStrokeText("- Parikshit Adhikari (077BCT054)", 100, 300, 0);
 	drawStrokeText("- Prayag Raj Acharya (077BCT061)", 100, 400, 0);
@@ -525,8 +499,6 @@ void render(void)
 
 void keyboard_handler_for_intro(unsigned char key, int x, int y)
 {
-
-	// Console Outputs
 	switch (key)
 	{
 	case 27:
@@ -544,10 +516,6 @@ void keyboard_handler_for_intro(unsigned char key, int x, int y)
 
 	case 'n':
 	case 'N':
-		glutDisplayFunc(display_handler);
-		glutReshapeFunc(reshape_handler);
-		glutKeyboardFunc(keyboard_handler);
-		glutIdleFunc(display_handler);
 		main2();
 
 	default:
@@ -557,65 +525,55 @@ void keyboard_handler_for_intro(unsigned char key, int x, int y)
 
 int main(int argc, char *argv[])
 {
-	// initialize glut
 	glutInit(&argc, argv);
+	// specify the display mode to be RGB and double buffering
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 
-	// specify the display mode to be RGB and single buffering
-	// we use single buffering since this will be non animated
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-
-	// define the size
 	glutInitWindowSize(1350, 690);
-	// glutFullScreen();
-	//  the position where the window will appear
 	glutInitWindowPosition(0, 0);
 	glutCreateWindow("Towers Of Hanoi");
-	glutKeyboardFunc(keyboard_handler_for_intro);
-	glutDisplayFunc(render);
-
+	glutKeyboardFunc(keyboard_handler_for_intro); //sets up callback for keyboard event
+	glutDisplayFunc(render); // sets up callback for display function
 	glutReshapeFunc(reshape);
-	// glutCreateMenu(select);
 
-	// enter the main loop
 	glutMainLoop();
 	return 0;
 }
-
+// initiates movement of a disk from one rod to another
 void move_disc(int from_rod, int to_rod)
 {
-
 	int d = to_rod - from_rod;
 
 	if (d > 0)
 		active_disc.direction = 1;
 	else if (d < 0)
 		active_disc.direction = -1;
-
+	// checking for invalid moves
 	if ((from_rod == to_rod) || (from_rod < 0) || (to_rod < 0) || (from_rod > 2) || (to_rod > 2))
 		return;
 
 	int i;
-	for (i = NUM_DISCS - 1; i >= 0 && t_board.rods[from_rod].occupancy_val[i] < 0; i--)
-		;
+	// finds the topmost disc, if top disc is empy slot, function returns without performing any further actions
+	for (i = NUM_DISCS - 1; i >= 0 && t_board.rods[from_rod].occupancy_val[i] < 0; i--);
 	if ((i < 0) || (i == 0 && t_board.rods[from_rod].occupancy_val[i] < 0))
 		return;
 	// Either the index < 0 or index at 0 and occupancy < 0 => it's an empty rod
 
 	active_disc.start_pos = t_board.rods[from_rod].positions[i];
-
 	active_disc.disc_index = t_board.rods[from_rod].occupancy_val[i];
 	active_disc.is_in_motion = true;
 	active_disc.u = 0.0;
 
 	int j;
-	for (j = 0; j < NUM_DISCS - 1 && t_board.rods[to_rod].occupancy_val[j] >= 0; j++)
-		;
+	// stops when it finds the first empty slot (negative occupancy value).
+	for (j = 0; j < NUM_DISCS - 1 && t_board.rods[to_rod].occupancy_val[j] >= 0; j++);
 	active_disc.dest_pos = t_board.rods[to_rod].positions[j];
 
 	t_board.rods[from_rod].occupancy_val[i] = -1;
 	t_board.rods[to_rod].occupancy_val[j] = active_disc.disc_index;
 }
 
+// calculates interpolated coordinate between two given points using Hermite interpolations
 Vector3 get_inerpolated_coordinate(Vector3 sp, Vector3 tp, double u)
 {
 	// 4 Control points
@@ -682,11 +640,11 @@ Vector3 operator-(Vector3 const &v1, Vector3 const &v2)
 
 void anim_handler()
 {
-	FPS = int(30 * SPEED);
-	int curr_time = glutGet(GLUT_ELAPSED_TIME);
-	int elapsed = curr_time - prev_time; // in ms
-	if (elapsed < 1000 / FPS)
-		return;
+	// FPS = int(30 * SPEED);
+	int curr_time = glutGet(GLUT_ELAPSED_TIME); // time in ms since program started
+	int elapsed = curr_time - prev_time; // in ms, time elapsed since last frame
+	if (elapsed < 1000 / FPS) //1k/fps: time that each frame should ideally take to achieve desired F.R.
+		return; 
 
 	prev_time = curr_time;
 
@@ -698,8 +656,7 @@ void anim_handler()
 
 		sol.pop_front();
 		int i;
-		for (i = NUM_DISCS; i >= 0 && t_board.rods[s.f].occupancy_val[i] < 0; i--)
-			;
+		for (i = NUM_DISCS - 1; i >= 0 && t_board.rods[s.f].occupancy_val[i] < 0; i--); //finds index of topmost disk
 		int ind = t_board.rods[s.f].occupancy_val[i];
 
 		if (ind >= 0)
@@ -715,9 +672,9 @@ void anim_handler()
 		int ind = active_disc.disc_index;
 		ActiveDisc &ad = active_disc;
 
-		if (ad.u == 0.0 && (discs[ind].position.z < ROD_HEIGHT + 0.2 * (t_board.rod_base_rad)))
+		if (ad.u == 0.0 && (discs[ind].position.z < ROD_HEIGHT ))
 		{
-			discs[ind].position.z += 0.05;
+			discs[ind].position.z += 0.05; //actually moves the disc closer to viewer
 			glutPostRedisplay();
 			return;
 		}
@@ -726,7 +683,6 @@ void anim_handler()
 		if (ad.u == 1.0 && discs[ind].position.z > ad.dest_pos.z)
 		{
 			done = true;
-			discs[ind].normal = Vector3(0, 0, 1);
 			discs[ind].position.z -= 0.05;
 			glutPostRedisplay();
 			return;
@@ -743,10 +699,10 @@ void anim_handler()
 			Vector3 prev_p = discs[ind].position;
 			Vector3 p = get_inerpolated_coordinate(ad.start_pos, ad.dest_pos, ad.u);
 			discs[ind].position = p;
-			discs[ind].normal.x = (p - prev_p).x;
-			discs[ind].normal.y = (p - prev_p).y;
-			discs[ind].normal.z = (p - prev_p).z;
-			normalize(discs[ind].normal);
+			// discs[ind].normal.x = (p - prev_p).x;
+			// discs[ind].normal.y = (p - prev_p).y;
+			// discs[ind].normal.z = (p - prev_p).z;
+			// normalize(discs[ind].normal);
 		}
 
 		if (ad.u >= 1.0 && discs[ind].position.z <= ad.dest_pos.z)
@@ -755,7 +711,7 @@ void anim_handler()
 			ad.is_in_motion = false;
 			done = false;
 			ad.u = 0.0;
-			discs[ad.disc_index].normal = Vector3(0, 0, 1);
+			// discs[ad.disc_index].normal = Vector3(0, 0, 1);
 			ad.disc_index = -1;
 		}
 		glutPostRedisplay();
