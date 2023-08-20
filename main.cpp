@@ -516,9 +516,6 @@ void move_disc(int from_rod, int to_rod)
 	// finds the topmost disc, if top disc is empy slot, function returns without performing any further actions
 	for (i = NUM_DISCS - 1; i >= 0 && t_board.rods[from_rod].occupancy_val[i] < 0; i--)
 		;
-	if ((i < 0) || (i == 0 && t_board.rods[from_rod].occupancy_val[i] < 0))
-		return;
-	// Either the index < 0 or index at 0 and occupancy < 0 => it's an empty rod
 
 	active_disc.start_pos = t_board.rods[from_rod].positions[i];
 	active_disc.disc_index = t_board.rods[from_rod].occupancy_val[i];
@@ -583,12 +580,6 @@ Vector3 get_inerpolated_coordinate(Vector3 sp, Vector3 tp, double u)
 
 	return p;
 }
-
-Vector3 operator-(Vector3 const &v1, Vector3 const &v2)
-{
-	return Vector3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
-}
-
 void anim_handler()
 {
 	int FPS = 60;
